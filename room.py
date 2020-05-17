@@ -2,29 +2,31 @@ from random import random
 from math import floor
 from flask_socketio import join_room, leave_room, emit
 
+from player import Player
+
 class Room:
 	possiblePieces = ['T', 'J', 'Z', 'O', 'S', 'L', 'I']
 
 	def __init__(self, name):
 		self.name = name
 
-		# Store the socket ids of the clients playing in this room.
-		self.ids = {1: None, 2: None}
+		# Store information about each player.
+		self.players = {
+			1: Player(),
+			2: Player(),
+		}
 
 		# List of the pieces both players play with.
 		self.pieces = []
 
-		# Position of the next piece to give to each player.
-		self.position = {1: 0, 2: 0}
-
 	# Join a client to this room.
 	def join(self, socketId):
 		player = None
-		if self.ids[1] == None:
-			self.ids[1] = socketId
+		if self.players[1].getId() == None:
+			self.players[1].setId(socketId)
 			player = 1
-		elif self.ids[2] == None:
-			self.ids[2] = socketId
+		elif self.players[2].getId() == None:
+			self.players[2].setId(socketId)
 			player = 2
 		else:
 			print('ERROR: cannot join client to room {}. The room is full'.format(self.name))
@@ -47,45 +49,45 @@ class Room:
 		# Notify both players.
 		emit('endDuoGame', {}, room=self.name)
 
-		# Remove socket ids, reset the piece list and the position counters.
-		self.ids[1] = None
-		self.ids[2] = None
+		# Reset the players and the piece list.
 		self.pieces = []
-		self.position[1] = 0
-		self.position[2] = 0
+		self.players = {
+			1: Player(),
+			2: Player(),
+		}
 
 		print('Disconnected both players in room {}. Room is currently empty'.format(self.name))
 
 	# Returns the number of players currently in the room.
 	def numPlayers(self):
-		if self.ids[1] == None:
+		if self.players[1].getId() == None:
 			return 0
-		elif self.ids[2] == None:
+		elif self.players[2].getId() == None:
 			return 1
 		else:
 			return 2
 
 	# Returns the player number from a socket id.
 	def getPlayerNumber(self, socketId):
-		if self.ids[1] == socketId:
+		if self.players[1].getId() == socketId:
 			return 1
-		elif self.ids[2] == socketId:
+		elif self.players[2].getId() == socketId:
 			return 2
 		else:
 			return None
 
 	# Returns the socket id of the adversary.
 	def getAdversarySocketId(self, socketId):
-		if self.ids[1] == socketId:
-			return self.ids[2]
-		elif self.ids[2] == socketId:
-			return self.ids[1]
+		if self.players[1].getId() == socketId:
+			return self.players[2].getId()
+		elif self.players[2].getId() == socketId:
+			return self.players[1].getId()
 		else:
 			return None
 
 	# Decides if the socket id is a player in this room.
 	def inRoom(self, socketId):
-		return self.ids[1] == socketId or self.ids[2] == socketId
+		return self.players[1].getId() == socketId or self.players[2].getId() == socketId
 
 	# Logs the pieces in this room to the terminal.
 	def logPieces(self):
@@ -102,8 +104,8 @@ class Room:
 		self.logPieces()
 
 		# Initialize the counter for both players.
-		self.position[1] = 10
-		self.position[2] = 10
+		self.players[1].setPosition(10)
+		self.players[2].setPosition(10)
 
 		emit('beginDuoGame', firstPieces, room=self.name)
 
@@ -132,18 +134,19 @@ class Room:
 			return False
 
 		# If I do not have the ten next pieces ready, create as many as needed.
-		if self.position[player] + 10 > len(self.pieces):
-			self.createNewPieces(self.position[player] + 10 - len(self.pieces))
-			for i in range(len(self.pieces) - 1, self.position[player] + 10):
+		currentPosition = self.players[player].getPosition()
+		if currentPosition + 10 > len(self.pieces):
+			self.createNewPieces(currentPosition + 10 - len(self.pieces))
+			for i in range(len(self.pieces) - 1, currentPosition + 10):
 				self.pieces.append(self.possiblePieces[floor(random() * len(self.possiblePieces))])
 
 		# Pack the next ten pieces.
 		nextBatch = {'pieces': []}
 		for i in range(10):
-			nextBatch['pieces'].append(self.pieces[self.position[player] + i])
+			nextBatch['pieces'].append(self.pieces[currentPosition + i])
 
-		# Update the counter of this player.
-		self.position[player] += 10
+		# Update the position of this player.
+		self.players[player].setPosition(currentPosition + 10)
 
 		# Send the batch to the player that requested it.
 		emit('nextBatch', nextBatch, room=socketId)
@@ -155,4 +158,4 @@ class Room:
 		self.bounce(socketId, 'startedAgain', {})
 
 		# Reset the piece position of this player.
-		self.position[self.getPlayerNumber(socketId)] = 10
+		self.players[self.getPlayerNumber(socketId)].setPosition(10)
