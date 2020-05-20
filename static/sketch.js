@@ -12,23 +12,36 @@ document.addEventListener('DOMContentLoaded', () => {
 		if (typeof(button) != 'undefined' && button != null) {
 			button.onclick = () => {
 				console.log('Requesting duo game to the server');
-				socket.emit('requestDuoGame', {});
+				socket.emit('requestDuoGame', {roomName: 'room1'});
 			}
 		}
 	});
 
+	/* The server notifies this duo player he has been accepted in the room. */
+	socket.on('acceptedInRoom', data => {
+		console.log('Received message: accepted in room');
+		document.querySelector('#duo-content').innerHTML = '';
+		document.querySelector('#canvas-holder').style.display = 'block';
+		client.acceptedInRoom();
+	});
+
+	socket.on('roomFull'. data => {
+		console.log('Received message: room full');
+		document.querySelector('#duo-content').innerHTML = '<p>Sorry, the room you requested is currently full. Please try another room<p>';
+	});
+
 	/* When the server wants us to wait for another player, remove the button and display
 	a waiting text. */
-	socket.on('waitingForAnotherPlayer', data => {
+	/*socket.on('waitingForAnotherPlayer', data => {
 		console.log('Received message: waiting for a nother player');
 		document.querySelector('#duo-content').innerHTML = '<p>Please wait while we find you another player...</p>';
 	});
 
 	/* The server says that the room is currently full. */
-	socket.on('allRoomsFull', data => {
+	/*socket.on('allRoomsFull', data => {
 		console.log('Received message: all rooms full');
 		document.querySelector('#duo-content').innerHTML = '<p>Sorry, all rooms are currently full. Please try again later.</p>';
-	});
+	});*/
 
 	/* The server tells us everything is ready to start duo game. Remove everything except the canvas. */
 	socket.on('beginDuoGame', data => {

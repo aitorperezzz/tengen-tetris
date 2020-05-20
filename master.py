@@ -31,23 +31,16 @@ class Master:
 		# Bounce the message inside the appropriate room.
 		return room.bounce(socketId, message, data)
 
-	# A client with a specific socket id wants to play.
-	def requestDuoGame(self, socketId):
-		# Search for an available room.
-		availableRoom = None
-		for roomName, room in self.rooms.items():
-			if room.numPlayers() < 2:
-				availableRoom = room
-				break
-
-		# If no room is available, notify the client.
-		if availableRoom == None:
-			print('All rooms are currently full')
-			emit('allRoomsFull', {}, room=socketId)
+	# A client with a specific socket id wnats to play in a specific room.
+	def requestDuoGame(self, socketId, roomName):
+		# Check that the room is available.
+		if self.rooms[roomName].numPlayers() == 2:
+			print('Room {} is currently full'.format(roomName))
+			emit('roomCurrentlyFull', {}, room=socketId)
 			return False
 
-		# Join the client to the available room.
-		return availableRoom.join(socketId)
+		# Join the client to the requested room.
+		return self.rooms[roomName].join(socketId)
 
 	# A socket id has disconnected.
 	def disconnect(self, socketId):

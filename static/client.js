@@ -63,6 +63,7 @@ const TEXT_SUBMIT = 'INPUT USERNAME';
 const TEXT_PAUSED = 'PAUSED';
 const TEXT_LEVEL_SELECTOR_TITLE = 'SELECT LEVEL';
 const TEXT_WAIT_SELECTION = 'WAIT FOR ADVERSARY\nLEVEL SELECTION';
+const TEXT_WAIT_PLAYER = 'PLEASE WAIT WHILE WE\nFIND YOU ANOTHER PLAYER';
 
 /* States of the game. */
 const STATE_SELECT_LEVEL = 'selectLevel';
@@ -91,11 +92,6 @@ class Client {
 		this.activeArena = undefined;
 		this.adversaryArena = undefined;
 
-		/* Create the paused text box in the center. */
-		let boxWidth = 100;
-		let boxHeight = canvasHeight / 10;
-		this.pausedBox = new TextBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_PAUSED, true, COLOR_GREY);
-
 		/* Create a next piece generator. */
 		this.nextPieceGenerator = new NextPieceGenerator(mode);
 
@@ -108,6 +104,19 @@ class Client {
 			active: {highScore: 0, initialLevelSelected: 0},
 			adversary: {highScore: 0, initialLevelSelected: 0}
 		};
+
+		/* Create the paused text box centered. */
+		let boxWidth = 100;
+		let boxHeight = canvasHeight / 10;
+		this.pausedBox = new TextBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_PAUSED, true, COLOR_GREY);
+
+		/* Create the input username box centered. */
+		boxWidth = 300;
+		boxHeight = canvasHeight / 4;
+		this.submitBox = new InputBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_SUBMIT);
+
+		/* Create the wait for another player box centered. */
+		this.waitForPlayerBox = new InputBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_WAIT_PLAYER);
 	}
 
 	/* Gives a new value for the active arena. */
@@ -127,6 +136,11 @@ class Client {
 		this.adversaryArena = new Arena(this.canvasWidth / 2, 0, this.canvasWidth / 2, this.canvasHeight, true);
 		this.adversaryArena.setHighScore(this.arenaInfo.adversary.highScore);
 		this.adversaryArena.setLevel(this.arenaInfo.adversary.initialLevelSelected);
+	}
+
+	/* The server has accepted this client into a duo room. */
+	acceptedInRoom() {
+
 	}
 
 	/* In duo mode, begin the game when the server has found two players. */

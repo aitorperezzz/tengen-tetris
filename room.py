@@ -36,13 +36,14 @@ class Room:
 		join_room(self.name)
 		print('Client {} accepted in room {}'.format(socketId, self.name))
 
-		# Tell the user to wait or tell both to begin new game.
-		if player == 1:
+		# Notify the client he has been accepted in the room.
+		emit('acceptedInRoom', {}, room=socketId)
+		'''if player == 1:
 			print('Room not full, sending wait message')
 			emit('waitingForAnotherPlayer', {}, room=socketId)
 		elif player == 2:
 			print('Room full, sending begin message')
-			self.beginDuoGame()
+			self.beginDuoGame()'''
 
 	# A player in this room has disconnected. Empty the room.
 	def disconnect(self):

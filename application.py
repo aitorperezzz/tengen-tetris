@@ -33,7 +33,7 @@ def scoreboard():
 @socketio.on('requestDuoGame')
 def requestDuoGame(data):
 	master.logMessage('requestDuoGame', request.sid)
-	return master.requestDuoGame(request.sid)
+	return master.requestDuoGame(request.sid, data.roomName)
 
 # A client disconnects (closes windows, goes back, etc).
 @socketio.on('disconnect')
