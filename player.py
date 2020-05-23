@@ -17,3 +17,9 @@ class Player:
 
 	def setPosition(self, position):
 		self.position = position
+
+	def getName(self):
+		return self.name
+
+	def setName(self, name):
+		self.name = name

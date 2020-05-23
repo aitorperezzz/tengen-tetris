@@ -31,16 +31,28 @@ class Master:
 		# Bounce the message inside the appropriate room.
 		return room.bounce(socketId, message, data)
 
-	# A client with a specific socket id wnats to play in a specific room.
-	def requestDuoGame(self, socketId, roomName):
-		# Check that the room is available.
-		if self.rooms[roomName].numPlayers() == 2:
-			print('Room {} is currently full'.format(roomName))
-			emit('roomCurrentlyFull', {}, room=socketId)
+	# A client with a specific socket id wants to play in a specific room.
+	def requestDuoGame(self, socketId, data):
+		# Point to the requested room.
+		room = self.rooms[data['roomName']]
+		if room == None:
+			print('Room {} does not exist.'.format(data['roomName']))
+			emit('responseDuoGame', {'accepted': False}, room=socketId)
 			return False
 
-		# Join the client to the requested room.
-		return self.rooms[roomName].join(socketId)
+		# Try to join the client to the requested room.
+		return self.rooms[data['roomName']].join(socketId)
+
+	# A client already accepted in a room gets identified with a username.
+	def login(self, socketId, data):
+		# Find out the room this socket id belongs to.
+		room = self.getRoom(socketId)
+		if room == None:
+			print('ERROR: login from socket id that does not belong to any room')
+			return False
+
+		# Login this client inside the room.
+		return room.login(socketId, data['username'])
 
 	# A socket id has disconnected.
 	def disconnect(self, socketId):
@@ -61,7 +73,6 @@ class Master:
 
 	# A player requests the next batch of pieces.
 	def requestNextBatch(self, socketId):
-		# Look for the room of this player.
 		room = self.getRoom(socketId)
 		if room == None:
 			return False
@@ -87,7 +98,6 @@ class Master:
 
 	# A player in duo mode has decided to start again.
 	def startedAgain(self, socketId):
-		# Find the room of the player.
 		room = self.getRoom(socketId)
 		if room == None:
 			return False
@@ -103,13 +113,10 @@ class Master:
 	def updateState(self, socketId, data):
 		return self.bounce(socketId, 'updateState', data)
 
-	# A player updates their input box.
-	def updateInputBox(self, socketId, data):
-		return self.bounce(socketId, 'updateInputBox', data)
-
 	# Player submits a high score.
 	def submit(self, socketId, data):
 		return self.database.submitHighScore(data['username'], data['mode'], data['high'])
 
+	# Returns the high scores of the mode requested.
 	def getScores(self, mode):
 		return self.database.getScores(mode)

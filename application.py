@@ -33,7 +33,13 @@ def scoreboard():
 @socketio.on('requestDuoGame')
 def requestDuoGame(data):
 	master.logMessage('requestDuoGame', request.sid)
-	return master.requestDuoGame(request.sid, data.roomName)
+	return master.requestDuoGame(request.sid, data)
+
+# A client submits a username to play in duo mode.
+@socketio.on('login')
+def login(data):
+	master.logMessage('login', request.sid)
+	return master.login(request.sid, data)
 
 # A client disconnects (closes windows, goes back, etc).
 @socketio.on('disconnect')
@@ -82,17 +88,11 @@ def updateSelector(data):
 	master.logMessage('updateSelector', request.sid)
 	return master.updateSelector(request.sid, data)
 
-# A player updates the state.
+# A player updates their arena state.
 @socketio.on('updateState')
 def updateState(data):
 	master.logMessage('updateState', request.sid)
 	return master.updateState(request.sid, data)
-
-# A player updates their input box.
-@socketio.on('updateInputBox')
-def updateInputBox(data):
-	master.logMessage('updateInputBox', request.sid)
-	return master.updateInputBox(request.sid, data)
 
 # A player has submitted a high score.
 @socketio.on('submit')

@@ -30,6 +30,7 @@ class Room:
 			player = 2
 		else:
 			print('ERROR: cannot join client to room {}. The room is full'.format(self.name))
+			emit('responseDuoGame', {'accepted': False}, room=socketId)
 			return False
 
 		# Join this socket id to the web sockets room.
@@ -37,13 +38,29 @@ class Room:
 		print('Client {} accepted in room {}'.format(socketId, self.name))
 
 		# Notify the client he has been accepted in the room.
-		emit('acceptedInRoom', {}, room=socketId)
-		'''if player == 1:
-			print('Room not full, sending wait message')
-			emit('waitingForAnotherPlayer', {}, room=socketId)
-		elif player == 2:
-			print('Room full, sending begin message')
-			self.beginDuoGame()'''
+		emit('responseDuoGame', {'accepted': True}, room=socketId)
+
+	# Store the username of the client and notify about the next step.
+	def login(self, socketId, username):
+		playerNumber = self.getPlayerNumber(socketId)
+		if playerNumber == None:
+			print('ERROR. Trying to login a client that does not exist in room.')
+			return False
+
+		# Store the username for the appropriate player.
+		self.players[playerNumber].setName(username)
+
+		# If we still do not have both sockets and usernames, tell the client to wait.
+		if self.numPlayers() != 2 or not self.bothUsernamesIntroduced():
+			print('Room {} not yet full, or not both players identified'.format(self.name))
+			print('Telling the client to wait')
+			emit('waitForPlayer', {}, room=socketId)
+
+		# If the room is full and I have both usernames, begin the duo game.
+		else:
+			print('Room {} is full and both players identified'.format(self.name))
+			print('Telling both players to begin duo game')
+			self.beginDuoGame()
 
 	# A player in this room has disconnected. Empty the room.
 	def disconnect(self):
@@ -67,6 +84,12 @@ class Room:
 			return 1
 		else:
 			return 2
+
+	# Decides if both usernames have been introduced into the data structure.
+	def bothUsernamesIntroduced(self):
+		if self.players[1].getName() == None or self.players[2].getName() == None:
+			return False
+		return True
 
 	# Returns the player number from a socket id.
 	def getPlayerNumber(self, socketId):
