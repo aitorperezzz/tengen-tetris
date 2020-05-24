@@ -59,18 +59,22 @@ const COLOR_BLACK = 0;
 const TEXT_TRY_AGAIN = 'TRY AGAIN';
 const TEXT_SUBMIT_AND_TRY_AGAIN = 'SUBMIT AND TRY AGAIN';
 const TEXT_GAME_OVER = 'GAME OVER';
-const TEXT_SUBMIT = 'INPUT USERNAME';
-const TEXT_PAUSED = 'PAUSED';
+const TEXT_SUBMIT_BOX_TITLE = 'INPUT USERNAME';
 const TEXT_LEVEL_SELECTOR_TITLE = 'SELECT LEVEL';
+const TEXT_PAUSED = 'PAUSED';
 const TEXT_WAIT_SELECTION = 'WAIT FOR ADVERSARY\nLEVEL SELECTION';
 const TEXT_WAIT_PLAYER = 'PLEASE WAIT WHILE WE\nFIND YOU ANOTHER PLAYER';
 
-/* States of the game. */
-const STATE_SELECT_LEVEL = 'selectLevel';
-const STATE_WAIT_ADVERSARY_SELECTION = 'waitingAdversarySelection';
+/* Define some states for the client. */
+const CLIENT_STATE_SUBMIT = 'client_submit';
+const CLIENT_STATE_WAIT_PLAYER = 'client_wait_player';
+const CLIENT_STATE_PLAY = 'client_play';
+
+/* Define states for the arena. */
+const STATE_SELECT_LEVEL = 'select_level';
+const STATE_WAIT_ADVERSARY_SELECTION = 'wait_adversary_selection';
 const STATE_PLAY = 'play';
-const STATE_GAME_OVER = 'gameOver';
-const STATE_SUBMIT = 'submit';
+const STATE_GAME_OVER = 'game_over';
 
 /* Key definitions to pass from client to arena. */
 const KEY_PAUSE = ' ';
@@ -83,12 +87,11 @@ const KEY_ENTER = 'key_enter';
 /* This class controls the highest level logic of the game. */
 class Client {
 	constructor(canvasWidth, canvasHeight, mode) {
-		console.log('Creating client object in mode: ' + mode);
 		this.canvasWidth = canvasWidth;
 		this.canvasHeight = canvasHeight;
 		this.mode = mode;
 
-		/* Create an active arena for the player and an adversary's arena. */
+		/* Create an active arena for the player, and an optional adversary arena. */
 		this.activeArena = undefined;
 		this.adversaryArena = undefined;
 
@@ -99,10 +102,10 @@ class Client {
 		this.paused = false;
 		this.lost = false;
 
-		/* Keep track of some values for the arenas. */
+		/* Keep track of some values for both arenas. */
 		this.arenaInfo = {
-			active: {highScore: 0, initialLevelSelected: 0},
-			adversary: {highScore: 0, initialLevelSelected: 0}
+			active: {highScore: 0, initialLevelSelected: 0, username: undefined},
+			adversary: {highScore: 0, initialLevelSelected: 0, username: undefined}
 		};
 
 		/* Create the paused text box centered. */
@@ -112,11 +115,14 @@ class Client {
 
 		/* Create the input username box centered. */
 		boxWidth = 300;
-		boxHeight = canvasHeight / 4;
-		this.submitBox = new InputBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_SUBMIT);
+		boxHeight = canvasHeight / 5;
+		this.submitBox = new InputBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_SUBMIT_BOX_TITLE);
 
 		/* Create the wait for another player box centered. */
-		this.waitForPlayerBox = new InputBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_WAIT_PLAYER);
+		this.waitForPlayerBox = new TextBox((canvasWidth - boxWidth) / 2, (canvasHeight - boxHeight) / 2, boxWidth, boxHeight, TEXT_WAIT_PLAYER, true, COLOR_GREY);
+
+		/* The initial state of the client is to ask for the username, in both modes. */
+		this.state = CLIENT_STATE_SUBMIT;
 	}
 
 	/* Gives a new value for the active arena. */
@@ -129,6 +135,7 @@ class Client {
 			this.activeArena.setLevel(this.arenaInfo.active.initialLevelSelected);
 		}
 		this.activeArena.setHighScore(this.arenaInfo.active.highScore);
+		this.activeArena.setUsername(this.arenaInfo.active.username);
 	}
 
 	/* Gives a new value for the adversary arena. */
@@ -136,11 +143,12 @@ class Client {
 		this.adversaryArena = new Arena(this.canvasWidth / 2, 0, this.canvasWidth / 2, this.canvasHeight, true);
 		this.adversaryArena.setHighScore(this.arenaInfo.adversary.highScore);
 		this.adversaryArena.setLevel(this.arenaInfo.adversary.initialLevelSelected);
+		this.adversaryArena.setUsername(this.arenaInfo.adversary.username);
 	}
 
-	/* The server has accepted this client into a duo room. */
-	acceptedInRoom() {
-
+	/* The server asks this client to wait for another player. */
+	waitForPlayer() {
+		this.state = CLIENT_STATE_WAIT_PLAYER;
 	}
 
 	/* In duo mode, begin the game when the server has found two players. */
@@ -155,12 +163,9 @@ class Client {
 		/* Send the first two pieces to both arenas. */
 		this.nextPieceGenerator.sendFirstPieces(this.activeArena);
 		this.nextPieceGenerator.sendFirstPieces(this.adversaryArena);
-	}
 
-	/* The server tells the client to end the duo game. */
-	endDuoGame() {
-		this.activeArena = undefined;
-		this.adversaryArena = undefined;
+		/* Leave the logic to the arena now. */
+		this.state = CLIENT_STATE_PLAY;
 	}
 
 	/* The server has sent an update on the adversary's arena. */
@@ -180,50 +185,50 @@ class Client {
 
 	/* Gets called when a key is pressed. */
 	keyPressed(code, key) {
-		if (key == KEY_PAUSE) {
-			if (this.mode == MODE_SOLO && !this.lost || this.mode == MODE_DUO) {
-				this.togglePause();
-			}
+		/* Get a key definition. */
+		let keyDefinition = this._decideKeyDefinition(code, key);
 
-			/* In duo mode, notify the server about the pause event. */
-			if (this.mode == MODE_DUO) {
-				this.sendMessage('pause', {});
-			}
-		}
-		else {
-			/* For any other key, get the definition and send it to the arena. */
-			if (this.activeArena != undefined && !this.paused) {
-				this.activeArena.keyPressed(this.decideKeyDefinition(code, key), code, key, this.mode);
-			}
-		}
-	}
+		if (this.state == CLIENT_STATE_SUBMIT) {
+			if (keyDefinition == KEY_ENTER) {
+				let username = this.submitBox.getInput();
+				this.arenaInfo.active.username = username;
 
-	/* Decides a common definition depending on the key pressed. */
-	decideKeyDefinition(code, key) {
-		if (code == UP_ARROW || key == 'w') {
-			return KEY_UP;
+				if (this.mode == MODE_SOLO) {
+					/* Directly start the game. */
+					this.state = CLIENT_STATE_PLAY;
+				}
+				else if (this.mode == MODE_DUO) {
+					/* Send the login event and wait for a response. */
+					this.sendMessage('login', {username: username});
+				}
+			}
+			else {
+				this.submitBox.keyPressed(key, code, mode);
+			}
 		}
-		else if (code == DOWN_ARROW || key == 's') {
-			return KEY_DOWN;
-		}
-		else if (code == RIGHT_ARROW || key == 'd') {
-			return KEY_RIGHT;
-		}
-		else if (code == LEFT_ARROW || key == 'a') {
-			return KEY_LEFT;
-		}
-		else if (code == ENTER) {
-			return KEY_ENTER;
-		}
-		else {
-			return undefined;
+		else if (this.state == CLIENT_STATE_PLAY) {
+			if (key == KEY_PAUSE) {
+				if (this.mode == MODE_SOLO && !this.lost || this.mode == MODE_DUO) {
+					this.togglePause();
+				}
+
+				if (this.mode == MODE_DUO) {
+					this.sendMessage('pause', {});
+				}
+			}
+			else {
+				/* For any other key, send the definition to the arena. */
+				if (this.activeArena != undefined && !this.paused) {
+					this.activeArena.keyPressed(keyDefinition, code, key, this.mode);
+				}
+			}
 		}
 	}
 
 	/* Gets called when a key is released. */
 	keyReleased(code, key) {
 		if (this.activeArena != undefined) {
-			let definition = this.decideKeyDefinition(code, key);
+			let definition = this._decideKeyDefinition(code, key);
 			if (definition != undefined) {
 				this.activeArena.keyReleased(definition);
 			}
@@ -276,6 +281,17 @@ class Client {
 		}
 	}
 
+	/* The player wants to submit high score and start again. */
+	submitAndStartAgain() {
+		let submitData = {
+			username: this.arenaInfo.active.username,
+			mode: this.mode,
+			high: this.arenaInfo.active.highScore
+		};
+		client.sendMessage('submit', submitData);
+		client.startAgain();
+	}
+
 	/* The adversary has started again. */
 	adversaryStartAgain(data) {
 		this.initializeAdversaryArena();
@@ -307,8 +323,8 @@ class Client {
 		}
 	}
 
-	/* The adversary has updated their state. */
-	updateState(data) {
+	/* The adversary has updated their arena state. */
+	adversaryUpdateArenaState(data) {
 		/* Keep a copy of the state. */
 		this.adversaryArena.setState(data.state);
 
@@ -330,13 +346,6 @@ class Client {
 		this.adversaryArena.updateSelector(data);
 	}
 
-	/* The adversary sends the new content of their input box. */
-	updateInputBox(data) {
-		if (this.mode == MODE_DUO && this.adversaryArena.state == STATE_SUBMIT) {
-			this.adversaryArena.updateInputBox(data.text);
-		}
-	}
-
 	/* The arena asks for the next piece. */
 	getNextPiece() {
 		return this.nextPieceGenerator.getNextPiece();
@@ -344,35 +353,67 @@ class Client {
 
 	/* Main loop that updates the arenas. */
 	update() {
-		/* In solo mode, initialize active arena if not defined. */
-		if (this.mode == MODE_SOLO && this.activeArena == undefined) {
-			this.initializeActiveArena();
-		}
+		if (this.state == CLIENT_STATE_PLAY) {
+			/* In solo mode, initialize active arena if not defined. */
+			if (this.mode == MODE_SOLO && this.activeArena == undefined) {
+				this.initializeActiveArena();
+			}
 
-		/* Update the active arena if not paused and not lost. */
-		if (this.activeArena != undefined && !this.paused && !this.lost) {
-			this.activeArena.update(this.mode);
+			/* Update the active arena if not paused and not lost. */
+			if (this.activeArena != undefined && !this.paused && !this.lost) {
+				this.activeArena.update(this.mode);
+			}
 		}
 	}
 
 	display() {
-		/* Display the arenas if defined. */
-		if (this.activeArena != undefined) {
-			this.activeArena.display();
+		if (this.state == CLIENT_STATE_SUBMIT) {
+			this.submitBox.display();
 		}
-		if (this.adversaryArena != undefined) {
-			this.adversaryArena.display();
+		else if (this.state == CLIENT_STATE_WAIT_PLAYER) {
+			this.waitForPlayerBox.display();
 		}
-
-		/* Display the pause box if needed. */
-		if (this.paused) {
+		else if (this.state == CLIENT_STATE_PLAY) {
+			/* Display the arenas if defined. */
 			if (this.activeArena != undefined) {
-				this.activeArena.blurBackground();
+				this.activeArena.display();
 			}
-			if (this.mode == MODE_DUO && this.adversaryArena != undefined) {
-				this.adversaryArena.blurBackground();
+			if (this.adversaryArena != undefined) {
+				this.adversaryArena.display();
 			}
-			this.pausedBox.display();
+
+			/* Display the pause box if needed. */
+			if (this.paused) {
+				if (this.activeArena != undefined) {
+					this.activeArena.blurBackground();
+				}
+				if (this.mode == MODE_DUO && this.adversaryArena != undefined) {
+					this.adversaryArena.blurBackground();
+				}
+				this.pausedBox.display();
+			}
+		}
+	}
+
+	/* Decides a common definition depending on the key pressed. */
+	_decideKeyDefinition(code, key) {
+		if (code == UP_ARROW || key == 'w') {
+			return KEY_UP;
+		}
+		else if (code == DOWN_ARROW || key == 's') {
+			return KEY_DOWN;
+		}
+		else if (code == RIGHT_ARROW || key == 'd') {
+			return KEY_RIGHT;
+		}
+		else if (code == LEFT_ARROW || key == 'a') {
+			return KEY_LEFT;
+		}
+		else if (code == ENTER) {
+			return KEY_ENTER;
+		}
+		else {
+			return undefined;
 		}
 	}
 }

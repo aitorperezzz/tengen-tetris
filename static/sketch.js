@@ -13,45 +13,36 @@ document.addEventListener('DOMContentLoaded', () => {
 			button.onclick = () => {
 				console.log('Requesting duo game to the server');
 				socket.emit('requestDuoGame', {roomName: 'room1'});
-			}
+			};
 		}
 	});
 
-	/* The server notifies this duo player he has been accepted in the room. */
-	socket.on('acceptedInRoom', data => {
-		console.log('Received message: accepted in room');
-		document.querySelector('#duo-content').innerHTML = '';
-		document.querySelector('#canvas-holder').style.display = 'block';
-		client.acceptedInRoom();
+	/* After requesting a duo game in a specific room, the server responds. */
+	socket.on('responseDuoGame', data => {
+		if (data.accepted === true) {
+			console.log('Client has been accepted in the requested room');
+			document.querySelector('#duo-content').innerHTML = '';
+			document.querySelector('#canvas-holder').style.display = 'block';
+		}
+		else if (data.accepted === false) {
+			console.log('Client was not accepted in the requested room');
+			document.querySelector('#duo-content').innerHTML = '<p>Sorry, the room you requested is currently full. Please try another room<p>';
+		}
 	});
 
-	socket.on('roomFull'. data => {
-		console.log('Received message: room full');
-		document.querySelector('#duo-content').innerHTML = '<p>Sorry, the room you requested is currently full. Please try another room<p>';
+	/* After login, the server asks me to wait for another player. */
+	socket.on('waitForPlayer', data => {
+		console.log('Received message: wait for player');
+		client.waitForPlayer();
 	});
 
-	/* When the server wants us to wait for another player, remove the button and display
-	a waiting text. */
-	/*socket.on('waitingForAnotherPlayer', data => {
-		console.log('Received message: waiting for a nother player');
-		document.querySelector('#duo-content').innerHTML = '<p>Please wait while we find you another player...</p>';
-	});
-
-	/* The server says that the room is currently full. */
-	/*socket.on('allRoomsFull', data => {
-		console.log('Received message: all rooms full');
-		document.querySelector('#duo-content').innerHTML = '<p>Sorry, all rooms are currently full. Please try again later.</p>';
-	});*/
-
-	/* The server tells us everything is ready to start duo game. Remove everything except the canvas. */
+	/* The server says everything is ready to start a duo game. */
 	socket.on('beginDuoGame', data => {
 		console.log('Received message: begin duo game');
-		document.querySelector('#duo-content').innerHTML = '';
-		document.querySelector('#canvas-holder').style.display = 'block';
 		client.beginDuoGame(data);
 	});
 
-	/* The server sends the client an update on the adversary's arena. */
+	/* The server sends an update on the adversary's arena. */
 	socket.on('updateAdversaryArena', data => {
 		console.log('Received message: update adversary arena');
 		client.receiveAdversaryArenaUpdate(data);
@@ -72,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
 	/* The server indicates that the game must be stopped. */
 	socket.on('endDuoGame', data => {
 		console.log('Received message: end duo game');
-		client.endDuoGame();
 		window.location.replace(location.protocol + '//' + document.domain + ':' + location.port + '/duo');
 	});
 
@@ -86,9 +76,9 @@ document.addEventListener('DOMContentLoaded', () => {
 	socket.on('lost', data => {
 		console.log('Received message: lost');
 		client.adversaryLost(data);
-	})
+	});
 
-	/* The other player has decided to start over. */
+	/* The adversary has decided to try again. */
 	socket.on('startedAgain', data => {
 		console.log('Received message: started again');
 		client.adversaryStartAgain(data);
@@ -103,13 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	/* The adversary updates its state. */
 	socket.on('updateState', data => {
 		console.log('Received message: update state');
-		client.updateState(data);
-	});
-
-	/* The adversary updates the content of an input box. */
-	socket.on('updateInputBox', data => {
-		console.log('Received message: update input box');
-		client.updateInputBox(data);
+		client.adversaryUpdateArenaState(data);
 	});
 });
 
@@ -119,7 +103,7 @@ function setup() {
 	mode = pathsArray[pathsArray.length - 1];
 
 	/* The size of the canvas depends on the game mode. */
-	let canvasWidth = mode == 'solo' ? 400 : 800;
+	let canvasWidth = mode == MODE_SOLO ? 400 : 800;
 	let canvasHeight = 540;
 	let canvas = createCanvas(canvasWidth, canvasHeight);
 
@@ -127,7 +111,7 @@ function setup() {
 	canvas.parent('canvas-holder');
 
 	/* Create the client. */
-	client = new Client(canvasWidth, canvasHeight, mode=mode);
+	client = new Client(canvasWidth, canvasHeight, mode);
 }
 
 function draw() {

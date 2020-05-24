@@ -45,6 +45,9 @@ class Arena extends ElementBox {
 		/* Establish the initial state of the arena. */
 		this.state = STATE_SELECT_LEVEL;
 
+		/* Keep the username of this arena. */
+		this.username = undefined;
+
 		/* Create the centered boxes. */
 		let boxWidth, boxHeight, initialxBox, initialyBox;
 
@@ -70,9 +73,6 @@ class Arena extends ElementBox {
 		initialxBox = initialx + (width - boxWidth) / 2;
 		initialyBox = initialy + (height - boxHeight) / 2;
 		this.gameOverSelectorBox = new SelectorBox(initialxBox, initialyBox, boxWidth, boxHeight, TEXT_GAME_OVER, gameOverOptions);
-
-		/* Create the high score submit box. */
-		this.submitBox = new InputBox(initialxBox, initialyBox, boxWidth, boxHeight, TEXT_SUBMIT);
 
 		/* Calculate the time of one animation, depending on the level. */
 		this.timePerAnimation = {};
@@ -189,19 +189,8 @@ class Arena extends ElementBox {
 					client.startAgain();
 				}
 				else if (optionSelected == 1) {
-					this.state = STATE_SUBMIT;
-					client.sendMessage('updateState', {state: STATE_SUBMIT});
+					client.submitAndStartAgain();
 				}
-			}
-		}
-		else if (this.state == STATE_SUBMIT) {
-			if (keyDefinition == KEY_ENTER) {
-				let username = this.submitBox.getInput();
-				client.sendMessage('submit', {username: username, mode: mode, high: this.high});
-				client.startAgain();
-			}
-			else {
-				this.submitBox.keyPressed(key, code, mode);
 			}
 		}
 	}
@@ -231,6 +220,10 @@ class Arena extends ElementBox {
 		}
 
 		return false;
+	}
+
+	setUsername(username) {
+		this.username = username;
 	}
 
 	/* Returns the current high score. */
@@ -321,10 +314,6 @@ class Arena extends ElementBox {
 		}
 	}
 
-	updateInputBox(text) {
-		this.submitBox.setInput(text);
-	}
-
 	/* Displays all the elements in the arena. */
 	display() {
 		super.display();
@@ -354,10 +343,6 @@ class Arena extends ElementBox {
 		else if (this.state == STATE_GAME_OVER) {
 			this.blurBackground();
 			this.gameOverSelectorBox.display();
-		}
-		else if (this.state == STATE_SUBMIT) {
-			this.blurBackground();
-			this.submitBox.display();
 		}
 	}
 
